@@ -55,6 +55,8 @@ python src/agent.py --env aws --framework cis --text "AWS account, root MFA disa
 python src/agent.py --help
 ```
 
+![CLI Example](CLI_Example.png)
+
 ### Output
 
 By default the agent writes a Markdown report to `./reports/`. Use `--format json` or `--format html` to change the output format.
