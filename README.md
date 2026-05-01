@@ -21,6 +21,8 @@ start index.html       # Windows
 
 Enter your Anthropic API key in the top bar, configure your environment, paste a config snapshot, and click **Run audit**. Results can be exported as JSON or Markdown.
 
+![GUI Example](GUI_Example.png)
+
 ---
 
 ## Features
