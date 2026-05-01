@@ -9,6 +9,20 @@ Built on the Anthropic Claude API.
 
 ---
 
+## GUI (browser)
+
+Open `index.html` directly in any browser — no server needed:
+
+```bash
+open index.html        # macOS
+xdg-open index.html    # Linux
+start index.html       # Windows
+```
+
+Enter your Anthropic API key in the top bar, configure your environment, paste a config snapshot, and click **Run audit**. Results can be exported as JSON or Markdown.
+
+---
+
 ## Features
 
 - Audits AWS, Azure, GCP, Linux, Windows Server, and Kubernetes environments

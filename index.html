@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compliance Audit Agent</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #F0EEE8;
+    --surface: #FFFFFF;
+    --surface2: #E8E6DF;
+    --border: rgba(0,0,0,0.09);
+    --border2: rgba(0,0,0,0.16);
+    --text: #1A1917;
+    --muted: #6B6961;
+    --pass: #2E7D4F;
+    --pass-bg: #EAF5ED;
+    --fail: #B33030;
+    --fail-bg: #FDF0F0;
+    --warn: #8A5A00;
+    --warn-bg: #FFF8E6;
+    --info: #1A5FA5;
+    --info-bg: #EAF2FC;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --radius: 8px;
+    --radius-lg: 12px;
+    --sidebar: 280px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141412;
+      --surface: #1E1D1A;
+      --surface2: #28271F;
+      --border: rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.14);
+      --text: #E8E6DF;
+      --muted: #8A8880;
+      --pass: #5EC27A; --pass-bg: #0F2E1A;
+      --fail: #E87272; --fail-bg: #2A0E0E;
+      --warn: #E8B84B; --warn-bg: #261D07;
+      --info: #6AABF0; --info-bg: #0C1E33;
+    }
+  }
+
+  html, body { height: 100%; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--surface);
+    border-bottom: 0.5px solid var(--border2);
+    padding: 0 24px;
+    height: 52px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .topbar-left { display: flex; align-items: center; gap: 12px; }
+  .logo {
+    width: 28px; height: 28px;
+    background: var(--text);
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .logo svg { width: 16px; height: 16px; fill: var(--bg); }
+  .app-name { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+  .app-version { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  .key-input-wrap {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .key-input-wrap label { font-size: 11px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+  .key-input {
+    width: 260px;
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 6px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+  }
+  .key-input:focus { border-color: var(--text); }
+  .key-status {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--border2);
+    flex-shrink: 0;
+    transition: background 0.2s;
+  }
+  .key-status.set { background: var(--pass); }
+
+  /* ── Layout ── */
+  .layout {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+    height: calc(100vh - 52px);
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    width: var(--sidebar);
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 0.5px solid var(--border2);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 20px 16px;
+    gap: 20px;
+  }
+
+  .sidebar-section-title {
+    font-size: 10px;
+    font-family: var(--mono);
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-bottom: 8px;
+  }
+
+  .field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 12px; }
+  .field label { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+  select, input[type=text], textarea {
+    width: 100%;
+    background: var(--surface2);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 7px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: none;
+  }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 10px center; padding-right: 28px; }
+  select:focus, input:focus, textarea:focus { border-color: var(--text); }
+
+  .run-btn {
+    width: 100%;
+    background: var(--text);
+    color: var(--bg);
+    border: none;
+    border-radius: var(--radius);
+    padding: 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .run-btn:hover { opacity: 0.85; }
+  .run-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .demo-btn {
+    width: 100%;
+    background: transparent;
+    color: var(--muted);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 8px;
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+    margin-top: 6px;
+  }
+  .demo-btn:hover { background: var(--surface2); color: var(--text); }
+
+  /* ── Main ── */
+  .main {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* ── Empty state ── */
+  .empty {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--muted);
+    text-align: center;
+    padding: 60px 20px;
+  }
+  .empty-icon {
+    width: 48px; height: 48px;
+    border: 0.5px solid var(--border2);
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 4px;
+  }
+  .empty-icon svg { width: 22px; height: 22px; stroke: var(--muted); fill: none; }
+  .empty h2 { font-size: 16px; font-weight: 500; color: var(--text); }
+  .empty p { font-size: 13px; max-width: 320px; line-height: 1.6; }
+
+  /* ── Log panel ── */
+  .panel {
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 0.5px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .panel-title {
+    font-size: 10px; font-family: var(--mono); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.08em;
+  }
+  .panel-body { padding: 16px; }
+
+  .log-box {
+    background: var(--surface2);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--text);
+    min-height: 80px;
+    max-height: 180px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    line-height: 1.7;
+  }
+  .progress-bar { height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; margin-top: 10px; }
+  .progress-fill { height: 100%; background: var(--text); border-radius: 2px; transition: width 0.5s ease; }
+
+  /* ── Score header ── */
+  .score-header {
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius-lg);
+    padding: 20px 24px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .score-ring { width: 72px; height: 72px; flex-shrink: 0; }
+  .score-info h2 { font-size: 20px; font-weight: 600; }
+  .score-info p { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+
+  /* ── Stats row ── */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .stat-card .num { font-size: 26px; font-weight: 600; font-family: var(--mono); line-height: 1; }
+  .stat-card .lbl { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 4px; }
+
+  /* ── Filter row ── */
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-btn {
+    padding: 5px 12px;
+    border-radius: 99px;
+    border: 0.5px solid var(--border2);
+    background: transparent;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .filter-btn:hover { background: var(--surface2); color: var(--text); }
+  .filter-btn.active { background: var(--text); color: var(--bg); border-color: var(--text); }
+
+  /* ── Findings ── */
+  .findings { display: flex; flex-direction: column; gap: 8px; }
+  .finding {
+    background: var(--surface);
+    border: 0.5px solid var(--border2);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    display: flex; gap: 12px; align-items: flex-start;
+    transition: border-color 0.15s;
+  }
+  .finding:hover { border-color: var(--text); }
+  .finding-icon {
+    width: 24px; height: 24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 600; flex-shrink: 0; margin-top: 1px;
+  }
+  .finding-icon.pass { background: var(--pass-bg); color: var(--pass); }
+  .finding-icon.fail { background: var(--fail-bg); color: var(--fail); }
+  .finding-icon.warn { background: var(--warn-bg); color: var(--warn); }
+  .finding-body { flex: 1; min-width: 0; }
+  .finding-title { font-weight: 500; font-size: 14px; }
+  .finding-meta { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+  .finding-detail { font-size: 13px; color: var(--muted); margin-top: 8px; line-height: 1.55; }
+  .finding-remediation {
+    margin-top: 8px; padding: 8px 12px;
+    background: var(--info-bg); border-radius: 6px;
+    font-size: 11px; font-family: var(--mono); color: var(--info); line-height: 1.6;
+  }
+  .tag {
+    display: inline-block; font-size: 10px; padding: 2px 7px;
+    border-radius: 4px; font-family: var(--mono);
+    background: var(--surface2); border: 0.5px solid var(--border2); color: var(--muted);
+    margin-top: 5px;
+  }
+
+  /* ── Export bar ── */
+  .export-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 16px;
+    border-top: 0.5px solid var(--border);
+  }
+  .export-bar span { font-size: 11px; color: var(--muted); font-family: var(--mono); margin-right: 4px; }
+  .export-btn {
+    padding: 5px 12px; border-radius: var(--radius);
+    border: 0.5px solid var(--border2); background: transparent;
+    color: var(--text); font-family: var(--mono); font-size: 11px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .export-btn:hover { background: var(--surface2); }
+
+  /* ── Spinner ── */
+  .spinner {
+    width: 12px; height: 12px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: var(--bg);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: inline-block;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Textarea ── */
+  #config-input { resize: vertical; min-height: 120px; font-size: 11px; line-height: 1.6; }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-left">
+    <div class="logo">
+      <svg viewBox="0 0 16 16"><path d="M8 1L1 5v6l7 4 7-4V5L8 1zm0 2.18L13 6.1v3.8L8 12.82 3 9.9V6.1L8 3.18z"/></svg>
+    </div>
+    <span class="app-name">Compliance Audit Agent</span>
+    <span class="app-version">v1.0</span>
+  </div>
+  <div class="key-input-wrap">
+    <label>API Key</label>
+    <input class="key-input" type="password" id="api-key" placeholder="sk-ant-..." oninput="onKeyInput()" />
+    <div class="key-status" id="key-status"></div>
+  </div>
+</div>
+
+<!-- Layout -->
+<div class="layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div>
+      <div class="sidebar-section-title">Environment</div>
+      <div class="field">
+        <label>Target</label>
+        <select id="env">
+          <option value="aws">AWS</option>
+          <option value="azure">Azure</option>
+          <option value="gcp">GCP</option>
+          <option value="linux">Linux Server</option>
+          <option value="windows">Windows Server</option>
+          <option value="k8s">Kubernetes</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Framework</label>
+        <select id="framework">
+          <option value="cis">CIS Benchmarks L1 + L2</option>
+          <option value="nist">NIST SP 800-53 Rev 5</option>
+          <option value="both" selected>Both (CIS + NIST)</option>
+          <option value="soc2">SOC 2 Type II</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Severity filter</label>
+        <select id="severity">
+          <option value="all">All severities</option>
+          <option value="critical">Critical only</option>
+          <option value="high">High &amp; above</option>
+          <option value="medium">Medium &amp; above</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Report depth</label>
+        <select id="depth">
+          <option value="standard">Standard</option>
+          <option value="detailed" selected>Detailed + remediation</option>
+          <option value="executive">Executive summary</option>
+        </select>
+      </div>
+    </div>
+
+    <div>
+      <div class="sidebar-section-title">Configuration snapshot</div>
+      <textarea id="config-input" placeholder="Paste JSON, YAML, CLI output, or describe your environment in plain English.&#10;&#10;e.g. 'AWS account, root MFA disabled, 3 public S3 buckets, CloudTrail not enabled in all regions'"></textarea>
+      <button class="demo-btn" onclick="loadDemo()">Load demo config</button>
+    </div>
+
+    <div>
+      <button class="run-btn" id="run-btn" onclick="runAudit()">
+        <span id="btn-inner">Run audit</span>
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main content -->
+  <main class="main" id="main">
+
+    <div class="empty" id="empty-state">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z"/></svg>
+      </div>
+      <h2>No audit yet</h2>
+      <p>Enter your Anthropic API key, configure your environment, paste a config snapshot, then click Run audit.</p>
+    </div>
+
+    <div id="log-panel" style="display:none;" class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Agent log</span>
+        <span id="log-status" style="font-size:11px;font-family:var(--mono);color:var(--muted)"></span>
+      </div>
+      <div class="panel-body">
+        <div class="log-box" id="log-box"></div>
+        <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+      </div>
+    </div>
+
+    <div id="results" style="display:none; display:flex; flex-direction:column; gap:16px;"></div>
+
+  </main>
+</div>
+
+<script>
+const DEMO = `AWS Account: prod-account-123456
+Region: us-east-1
+
+IAM:
+- Root MFA: NOT enabled
+- Root access keys: none
+- Password policy: 8 char min, no complexity, no expiry
+- 47 IAM users; 12 have not rotated access keys in 180+ days
+- 3 users have console access without MFA
+- No SCPs enforced on the organisation
+
+S3:
+- 12 buckets; 3 have public ACLs (static-assets, dev-uploads, old-reports)
+- Versioning disabled on 8 buckets; MFA delete not enabled on any
+
+CloudTrail:
+- Enabled in us-east-1 only (not multi-region)
+- Log file validation: enabled
+- CloudWatch Logs integration: NOT configured
+
+EC2 / Networking:
+- 34 instances running
+- 2 security groups allow 0.0.0.0/0 on port 22 (SSH)
+- Default VPC exists and has active resources
+- VPC flow logs: NOT enabled
+
+RDS:
+- 3 databases; 1 is publicly accessible (dev-db, MySQL)
+- Encryption at rest: enabled on 2 of 3
+
+Monitoring:
+- GuardDuty: NOT enabled
+- AWS Config: NOT enabled
+- Security Hub: NOT enabled
+- Macie: NOT enabled`;
+
+let findings = [];
+let lastResult = null;
+let activeFilter = 'all';
+
+function onKeyInput() {
+  const val = document.getElementById('api-key').value.trim();
+  document.getElementById('key-status').className = 'key-status' + (val.startsWith('sk-ant-') ? ' set' : '');
+}
+
+function loadDemo() {
+  document.getElementById('config-input').value = DEMO;
+  document.getElementById('env').value = 'aws';
+  document.getElementById('framework').value = 'both';
+  document.getElementById('depth').value = 'detailed';
+}
+
+function setLog(text, progress) {
+  const box = document.getElementById('log-box');
+  box.textContent = text;
+  box.scrollTop = box.scrollHeight;
+  if (progress !== undefined) document.getElementById('progress-fill').style.width = progress + '%';
+}
+
+function appendLog(line, progress) {
+  const box = document.getElementById('log-box');
+  box.textContent += (box.textContent ? '\n' : '') + line;
+  box.scrollTop = box.scrollHeight;
+  if (progress !== undefined) document.getElementById('progress-fill').style.width = progress + '%';
+}
+
+async function runAudit() {
+  const apiKey = document.getElementById('api-key').value.trim();
+  if (!apiKey) { alert('Enter your Anthropic API key in the top bar first.'); return; }
+  if (!apiKey.startsWith('sk-ant-')) { alert('That doesn\'t look like a valid Anthropic API key (should start with sk-ant-).'); return; }
+
+  const config = document.getElementById('config-input').value.trim();
+  if (!config) { alert('Paste a configuration snapshot or describe your environment first.'); return; }
+
+  const env = document.getElementById('env').value;
+  const framework = document.getElementById('framework').value;
+  const severity = document.getElementById('severity').value;
+  const depth = document.getElementById('depth').value;
+
+  document.getElementById('run-btn').disabled = true;
+  document.getElementById('btn-inner').innerHTML = '<span class="spinner"></span> Auditing…';
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('log-panel').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('log-status').textContent = 'running';
+  setLog('', 0);
+
+  const envMap = { aws:'AWS', azure:'Azure', gcp:'GCP', linux:'Linux Server', windows:'Windows Server', k8s:'Kubernetes' };
+  const fwMap = { cis:'CIS Benchmarks (Level 1 & 2)', nist:'NIST SP 800-53 Rev 5', both:'CIS Benchmarks (Level 1 & 2) and NIST SP 800-53 Rev 5', soc2:'SOC 2 Type II' };
+  const depthInstructions = {
+    standard: 'Produce 10–14 findings. Include a brief detail and one-line remediation.',
+    detailed: 'Produce 14–20 findings. Include detailed explanation and specific actionable remediation with CLI commands where relevant.',
+    executive: 'Produce 6–10 top findings. Focus on business risk and high-level themes.'
+  };
+
+  const steps = [
+    'Parsing configuration snapshot…',
+    'Mapping to control framework…',
+    'Evaluating IAM posture…',
+    'Checking network exposure…',
+    'Reviewing encryption controls…',
+    'Auditing logging & monitoring…',
+    'Checking storage security…',
+    'Compiling findings…',
+    'Generating remediation steps…'
+  ];
+  let si = 0;
+  const stepTimer = setInterval(() => {
+    if (si < steps.length) {
+      appendLog(`[${String(si+1).padStart(2,'0')}] ${steps[si]}`, (si+1)/steps.length*70);
+      si++;
+    }
+  }, 700);
+
+  const systemPrompt = `You are an expert cloud and infrastructure security auditor. Analyse configuration snapshots and produce structured compliance findings.
+
+CRITICAL: Respond with ONLY a valid JSON object. No markdown, no preamble, no explanation outside the JSON.
+
+Return exactly:
+{
+  "summary": { "score": <0-100>, "total": <int>, "passed": <int>, "failed": <int>, "warnings": <int> },
+  "findings": [
+    {
+      "id": "<control-id>",
+      "title": "<short title max 8 words>",
+      "status": "pass|fail|warn",
+      "severity": "critical|high|medium|low|info",
+      "framework": "<exact control ref>",
+      "category": "<IAM|Network|Storage|Logging|Encryption|Config|Compute|Container>",
+      "detail": "<1-2 sentences: what was found and why it matters>",
+      "remediation": "<specific actionable step, include CLI command if applicable>"
+    }
+  ]
+}`;
+
+  const userPrompt = `Audit this ${envMap[env]} environment against ${fwMap[framework]}.
+Severity filter: ${severity}. ${depthInstructions[depth]}
+
+Configuration:
+---
+${config}
+---
+
+Return only JSON.`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4096,
+        system: systemPrompt,
+        messages: [{ role: 'user', content: userPrompt }]
+      })
+    });
+
+    clearInterval(stepTimer);
+
+    if (!resp.ok) {
+      const err = await resp.json();
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
+    }
+
+    const data = await resp.json();
+    const raw = data.content.map(b => b.text || '').join('');
+    const clean = raw.replace(/```json|```/g, '').trim();
+    const start = clean.indexOf('{'), end = clean.lastIndexOf('}') + 1;
+    const result = JSON.parse(clean.slice(start, end));
+
+    appendLog(`[OK] Audit complete — ${result.findings.length} findings generated.`, 100);
+    document.getElementById('log-status').textContent = 'complete';
+
+    findings = result.findings;
+    lastResult = result;
+    activeFilter = 'all';
+    renderResults(result, env, framework);
+
+  } catch(e) {
+    clearInterval(stepTimer);
+    appendLog(`[ERR] ${e.message}`, 100);
+    document.getElementById('log-status').textContent = 'error';
+  } finally {
+    document.getElementById('run-btn').disabled = false;
+    document.getElementById('btn-inner').textContent = 'Run audit';
+  }
+}
+
+function renderResults(result, env, framework) {
+  const s = result.summary;
+  const pct = s.score;
+  const color = pct >= 80 ? 'var(--pass)' : pct >= 60 ? 'var(--warn)' : 'var(--fail)';
+  const grade = pct >= 80 ? 'Compliant' : pct >= 60 ? 'Partially compliant' : 'Non-compliant';
+
+  const r = 30, cx = 36, cy = 36, circ = 2 * Math.PI * r;
+  const dash = (pct / 100) * circ;
+
+  const categories = ['all', ...new Set(findings.map(f => f.category).filter(Boolean))];
+
+  const container = document.getElementById('results');
+  container.style.display = 'flex';
+  container.innerHTML = `
+    <div class="score-header">
+      <svg class="score-ring" viewBox="0 0 72 72">
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--border2)" stroke-width="5"/>
+        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="5"
+          stroke-dasharray="${dash.toFixed(1)} ${(circ-dash).toFixed(1)}"
+          stroke-dashoffset="${(circ/4).toFixed(1)}" stroke-linecap="round"/>
+        <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+          font-size="14" font-weight="600" fill="${color}" font-family="IBM Plex Mono, monospace">${pct}</text>
+      </svg>
+      <div class="score-info">
+        <h2 style="color:${color}">${grade}</h2>
+        <p>Score ${pct}/100 &nbsp;·&nbsp; ${env.toUpperCase()} &nbsp;·&nbsp; ${framework.toUpperCase()}</p>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card"><div class="num" style="color:var(--pass)">${s.passed}</div><div class="lbl">passed</div></div>
+      <div class="stat-card"><div class="num" style="color:var(--fail)">${s.failed}</div><div class="lbl">failed</div></div>
+      <div class="stat-card"><div class="num" style="color:var(--warn)">${s.warnings}</div><div class="lbl">warnings</div></div>
+      <div class="stat-card"><div class="num">${s.total}</div><div class="lbl">total checks</div></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">Findings</span>
+      </div>
+      <div class="panel-body" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="filter-row" id="filter-row">
+          ${categories.map(c => `<button class="filter-btn ${c === 'all' ? 'active' : ''}" onclick="setFilter('${c}')">${c}</button>`).join('')}
+        </div>
+        <div class="findings" id="findings-list"></div>
+      </div>
+      <div class="export-bar">
+        <span>Export</span>
+        <button class="export-btn" onclick="exportJSON()">JSON</button>
+        <button class="export-btn" onclick="exportMarkdown()">Markdown</button>
+      </div>
+    </div>`;
+
+  renderFindings();
+}
+
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.toggle('active', b.textContent === f));
+  renderFindings();
+}
+
+function renderFindings() {
+  const sevOrder = { critical:0, high:1, medium:2, low:3, info:4 };
+  const filtered = activeFilter === 'all' ? findings : findings.filter(f => f.category === activeFilter);
+  const sorted = [...filtered].sort((a,b) => (sevOrder[a.severity]||5) - (sevOrder[b.severity]||5));
+  const icons = { pass:'✓', fail:'✕', warn:'!' };
+  const sevColors = { critical:'var(--fail)', high:'var(--fail)', medium:'var(--warn)', low:'var(--muted)', info:'var(--info)' };
+
+  document.getElementById('findings-list').innerHTML = sorted.map(f => `
+    <div class="finding">
+      <div class="finding-icon ${f.status}">${icons[f.status]||'?'}</div>
+      <div class="finding-body">
+        <div class="finding-title">${f.title}</div>
+        <div class="finding-meta">
+          <span style="color:${sevColors[f.severity]||'var(--muted)'};font-weight:500">${(f.severity||'').toUpperCase()}</span>
+          &nbsp;·&nbsp;${f.id||''}&nbsp;·&nbsp;${f.framework||''}
+        </div>
+        <span class="tag">${f.category||''}</span>
+        ${f.detail ? `<div class="finding-detail">${f.detail}</div>` : ''}
+        ${f.remediation && f.status !== 'pass' ? `<div class="finding-remediation">→ ${f.remediation}</div>` : ''}
+      </div>
+    </div>`).join('');
+}
+
+function exportJSON() {
+  if (!lastResult) return;
+  const blob = new Blob([JSON.stringify(lastResult, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `audit_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function exportMarkdown() {
+  if (!lastResult) return;
+  const s = lastResult.summary;
+  const sevEmoji = { critical:'🔴', high:'🟠', medium:'🟡', low:'🔵', info:'⚪' };
+  const statusSym = { pass:'✅', fail:'❌', warn:'⚠️' };
+  let md = `# Compliance Audit Report\n\n**Score:** ${s.score}/100 &nbsp;|&nbsp; Passed: ${s.passed} &nbsp;|&nbsp; Failed: ${s.failed} &nbsp;|&nbsp; Warnings: ${s.warnings}\n\n---\n\n## Findings\n\n`;
+  for (const f of lastResult.findings) {
+    md += `### ${statusSym[f.status]||''} ${f.title}\n\n`;
+    md += `| | |\n|---|---|\n| ID | \`${f.id}\` |\n| Severity | ${sevEmoji[f.severity]||''} ${(f.severity||'').toUpperCase()} |\n| Framework | ${f.framework} |\n| Category | ${f.category} |\n\n`;
+    if (f.detail) md += `**Finding:** ${f.detail}\n\n`;
+    if (f.remediation && f.status !== 'pass') md += `**Remediation:** ${f.remediation}\n\n`;
+    md += '---\n\n';
+  }
+  const blob = new Blob([md], { type: 'text/markdown' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `audit_${new Date().toISOString().slice(0,10)}.md`;
+  a.click();
+}
+</script>
+</body>
+</html>
