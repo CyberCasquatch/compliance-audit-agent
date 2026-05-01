@@ -1,0 +1,74 @@
+# Linux Server — Compliance Config Snapshot
+# Collected: 2024-01-15 | Ubuntu 22.04 LTS | Kernel 5.15.0-91-generic
+
+=== SSHD Config ===
+PermitRootLogin yes
+PasswordAuthentication yes
+PermitEmptyPasswords no
+X11Forwarding yes
+Protocol 2
+Port 22
+MaxAuthTries 6
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+UsePAM yes
+PrintLastLog yes
+TCPKeepAlive yes
+ClientAliveInterval 0
+
+=== Password Policy (/etc/login.defs) ===
+PASS_MAX_DAYS   99999
+PASS_MIN_DAYS   0
+PASS_MIN_LEN    6
+PASS_WARN_AGE   7
+
+=== Users with UID 0 ===
+root
+recovery-admin
+
+=== Firewall Status (ufw) ===
+Status: inactive
+
+=== Kernel Parameters ===
+net.ipv4.ip_forward = 1
+net.ipv4.conf.all.accept_redirects = 1
+net.ipv4.conf.all.send_redirects = 1
+net.ipv4.conf.all.log_martians = 0
+kernel.randomize_va_space = 0
+fs.suid_dumpable = 1
+
+=== Listening Ports ===
+LISTEN 0.0.0.0:22     sshd
+LISTEN 0.0.0.0:80     nginx
+LISTEN 0.0.0.0:443    nginx
+LISTEN 0.0.0.0:3306   mysqld
+LISTEN 0.0.0.0:6379   redis-server
+LISTEN 0.0.0.0:8080   java
+
+=== Running Services ===
+sshd.service          active (running)
+nginx.service         active (running)
+mysql.service         active (running)
+redis-server.service  active (running)
+rsyslog.service       active (running)
+auditd.service        inactive (dead)
+apparmor.service      inactive (dead)
+fail2ban.service      inactive (dead)
+
+=== World-Writable Files ===
+/tmp/app-cache/session_store.db
+/var/www/html/uploads/
+
+=== SUID/SGID Files ===
+/usr/bin/sudo
+/usr/bin/passwd
+/usr/bin/chsh
+/usr/bin/newgrp
+/usr/sbin/exim4
+
+=== Audit Daemon ===
+auditd: not running
+
+=== Crontabs ===
+root: 0 3 * * * /opt/backup/backup.sh
+www-data: * * * * * curl http://external-service.example.com/ping
