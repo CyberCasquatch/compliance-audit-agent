@@ -12,6 +12,14 @@ import os
 from pathlib import Path
 from datetime import datetime
 
+# Load .env file from the project root (parent of src/)
+try:
+    from dotenv import load_dotenv
+    _env_path = Path(__file__).parent.parent / ".env"
+    load_dotenv(dotenv_path=_env_path)
+except ImportError:
+    pass  # python-dotenv not installed; fall back to shell environment
+
 from auditor import Auditor
 from reporter import Reporter
 
@@ -95,7 +103,9 @@ def main():
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        print("Error: ANTHROPIC_API_KEY environment variable is not set.", file=sys.stderr)
+        print("Error: ANTHROPIC_API_KEY is not set.", file=sys.stderr)
+        print("  Add it to your .env file:  ANTHROPIC_API_KEY=sk-ant-...", file=sys.stderr)
+        print("  Or export it:              export ANTHROPIC_API_KEY=sk-ant-...", file=sys.stderr)
         sys.exit(1)
 
     config_text = load_config(args)
